@@ -1,5 +1,5 @@
 import React from 'react';
-import {StyleSheet, Text, View, Button} from 'react-native';
+import {StyleSheet, Text, View, Button, TouchableOpacity} from 'react-native';
 
 import {NavigationContainer, useTheme} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
@@ -9,28 +9,19 @@ function HomeScreen({navigation}) {
 
   return (
     <View style={[styles.screenView]}>
-      <Text style={{color: colors.text}}>Home Screen</Text>
-      <Button
-        title="Go to Details"
-        onPress={() => navigation.navigate('Details')}
-      />
-    </View>
-  );
-}
-
-function DetailsScreen({navigation}) {
-  const {colors} = useTheme();
-
-  return (
-    <View style={[styles.screenView]}>
-      <Text style={{color: colors.text}}>Details Screen</Text>
-      <Button
-        title="Go to Details...again"
-        onPress={() => navigation.push('Details')}
-      />
-      <Button title="Go to Home" onPress={() => navigation.navigate('Home')} />
-      <Button title="Go Back" onPress={() => navigation.goBack()} />
-      <Button title="To top" onPress={() => navigation.popToTop()} />
+      <Text style={[styles.title]}>Retroboard Control</Text>
+      <View style={styles.appButtonsView}>
+        <TouchableOpacity
+          style={styles.appButton}
+          onPress={() => console.log('Clock pressed')}>
+          <Text style={styles.appButtonText}>Clock</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.appButton}
+          onPress={() => console.log('Clear pressed')}>
+          <Text style={styles.appButtonText}>Clear</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -64,11 +55,6 @@ function App() {
           component={HomeScreen}
           options={{title: ''}}
         />
-        <Stack.Screen
-          name="Details"
-          component={DetailsScreen}
-          options={{title: ''}}
-        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -79,6 +65,24 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  appButtonsView: {
+    marginTop: 20,
+    flexDirection: 'row',
+  },
+  title: {
+    fontWeight: '700',
+    fontSize: 24,
+    color: '#ffff33',
+  },
+  appButton: {
+    backgroundColor: '#ffff33',
+    padding: 10,
+    borderRadius: 5,
+    margin: 5,
+  },
+  appButtonText: {
+    fontSize: 18,
   },
 });
 
