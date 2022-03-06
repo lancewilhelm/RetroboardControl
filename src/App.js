@@ -13,7 +13,7 @@ import {
 
 import {NavigationContainer, useTheme} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import BleManager, {start, stopScan} from 'react-native-ble-manager';
+import BleManager, {getConnectedPeripherals, start, stopScan} from 'react-native-ble-manager';
 
 const Stack = createNativeStackNavigator();
 const BleManagerModule = NativeModules.BleManager;
@@ -28,7 +28,7 @@ function App() {
     dark: true,
     colors: {
       primary: '#ffff33',
-      background: '#000023',
+      background: '#00003d',
       card: '#000028',
       text: '#fff',
       border: '#ffff33',
@@ -92,9 +92,11 @@ function App() {
     console.log('Got ble peripheral', peripheral);
     if (!peripheral.name) {
       peripheral.name = 'Unknown';
+      // Do nothing else, for now, with Unknown devices
+    } else {
+      peripherals.set(peripheral.id, peripheral);
+      setList(Array.from(peripherals.values()));
     }
-    peripherals.set(peripheral.id, peripheral);
-    setList(Array.from(peripherals.values()));
   }
 
   function testPeripheral(peripheral) {
@@ -175,16 +177,16 @@ function App() {
 
     return () => {
       console.log('unmount');
-      bleManagerEmitter.removeListener(
+      bleManagerEmitter.remove(
         'BleManagerDiscoverPeripheral',
         handleDiscoverPeripheral,
       );
-      bleManagerEmitter.removeListener('BleManagerStopScan', handleStopScan);
-      bleManagerEmitter.removeListener(
+      bleManagerEmitter.remove('BleManagerStopScan', handleStopScan);
+      bleManagerEmitter.remove(
         'BleManagerDisconnectPeripheral',
         handleDisconnectedPeripheral,
       );
-      bleManagerEmitter.removeListener(
+      bleManagerEmitter.remove(
         'BleManagerDidUpdateValueForCharacteristic',
         handleUpdatedValueForCharacteristic,
       );
@@ -192,13 +194,13 @@ function App() {
   }, []);
 
   function renderItem(item) {
-    const color = item.connected ? 'green' : '#fff';
+    const color = item.connected ? '#3d3d00' : '#00003d';
     return (
       <TouchableOpacity onPress={() => testPeripheral(item)}>
-        <View style={{backgroundColor: color}}>
-          <Text>{item.name}</Text>
-          <Text>{item.rssi}</Text>
-          <Text>{item.id}</Text>
+        <View style={[styles.peripheral, {backgroundColor: color, borderColor: '#ffff33'}]}>
+          <Text style={{color: '#ffff33'}}>{item.name}</Text>
+          <Text style={{color: '#ffff33'}}>{item.rssi}</Text>
+          <Text style={{color: '#ffff33'}}>{item.id}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -218,12 +220,15 @@ function App() {
           options={{title: ''}}
         />
       </Stack.Navigator>
-      <View style={styles.screenView}>
+      <View style={[styles.screenView, {flex: 2}]}>
         <TouchableOpacity style={styles.appButton} onPress={startScan}>
           <Text style={styles.appButtonText}>Start Scan</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.appButton} onPress={stopScan}>
           <Text style={styles.appButtonText}>Stop Scan</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.appButton} onPress={retrieveConnected}>
+          <Text style={styles.appButtonText}>Get Connected Devices</Text>
         </TouchableOpacity>
         <FlatList
           data={list}
@@ -262,6 +267,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#00003d',
   },
   appButtonsView: {
     marginTop: 5,
@@ -281,6 +287,13 @@ const styles = StyleSheet.create({
   appButtonText: {
     fontSize: 18,
   },
+  peripheral: {
+    padding: 5,
+    margin: 5,
+    borderColor: '#ffff33',
+    borderRadius: 5,
+    borderWidth: 1,
+  }
 });
 
 export default App;
