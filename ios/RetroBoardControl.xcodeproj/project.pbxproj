@@ -104,7 +104,6 @@
 				490E68372627DB279532DD96 /* Pods-RetroBoardControl-RetroBoardControlTests.debug.xcconfig */,
 				F67F8C15BDE6D6299EAF382B /* Pods-RetroBoardControl-RetroBoardControlTests.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -485,6 +484,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 693Z5K3NVN;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = RetroBoardControl/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -511,6 +511,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 693Z5K3NVN;
 				INFOPLIST_FILE = RetroBoardControl/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
