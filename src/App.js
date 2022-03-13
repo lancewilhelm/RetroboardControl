@@ -29,7 +29,7 @@ const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [isMonitoring, setIsMonitoring] = useState(false);
-  const [deviceID, setDeviceID] = useState(null);
+  const [connectedDevice, setConnectedDevice] = useState(null);
   const [msg, setMsg] = useState();
   const peripherals = new Map();
   const [list, setList] = useState();
@@ -50,7 +50,7 @@ function App() {
   const rxCharID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
   const txCharID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-  function startScan() {
+  function findAndConnect() {
     if (!isScanning) {
       BleManager.scan([serviceID], 3, true)
         .then(res => {
@@ -63,9 +63,47 @@ function App() {
     }
   }
 
+  function handleDiscoverPeripheral(peripheral) {
+    console.log('Got ble peripheral', peripheral);
+    if (!peripheral.name) {
+      peripheral.name = 'Unknown';
+      // Do nothing else, for now, with Unknown devices
+    } else {
+      peripherals.set(peripheral.id, peripheral);
+      setList(Array.from(peripherals.values()));
+      BleManager.stopScan();
+      setConnectedDevice(peripheral.id);
+      BleManager.connect(peripheral.id).then(() => {
+        console.log('Connected to ' + peripheral.id);
+        BleManager.retrieveServices(peripheral.id).then(data => {
+          console.log('Retrieved peripheral services', data);
+          getNotifications(peripheral.id);
+        });
+      });
+    }
+  }
+
+  function getNotifications(id) {
+    console.log(id);
+    BleManager.startNotification(id, serviceID, txCharID)
+      .then(() => {
+        console.log('Notifications started...');
+        setIsMonitoring(true);
+      })
+      .catch(err => {
+        console.error(err);
+      });
+  }
+
   function handleStopScan() {
     console.log('Scan is stopped');
     setIsScanning(false);
+  }
+
+  function disconnectDevice() {
+    BleManager.disconnect(connectedDevice).then(() => {
+      console.log('Device disconnected');
+    });
   }
 
   function handleDisconnectedPeripheral(data) {
@@ -73,7 +111,7 @@ function App() {
     if (peripheral) {
       peripheral.connected = false;
       peripherals.set(peripheral.id, peripheral);
-      setDeviceID(__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED);
+      setConnectedDevice(null);
       setList(Array.from(peripherals.values()));
       setIsMonitoring(false);
     }
@@ -91,21 +129,9 @@ function App() {
     setMsg(val);
   }
 
-  function getNotifications() {
-    console.log(deviceID);
-    BleManager.startNotification(deviceID, serviceID, txCharID)
-      .then(() => {
-        console.log('Notifications started...');
-        setIsMonitoring(true);
-      })
-      .catch(err => {
-        console.error(err);
-      });
-  }
-
   function writeData(data) {
     console.log(data);
-    BleManager.write(deviceID, serviceID, rxCharID, stringToBytes(data))
+    BleManager.write(connectedDevice, serviceID, rxCharID, stringToBytes(data))
       .then(() => {
         console.log('Write: ' + data);
       })
@@ -114,76 +140,8 @@ function App() {
       });
   }
 
-  function retrieveConnected() {
-    BleManager.getConnectedPeripherals([]).then(res => {
-      if (res.length === 0) {
-        console.log('No connected peripherals');
-      }
-      console.log(res);
-      for (var i = 0; i < res.length; i++) {
-        var peripheral = res[i];
-        peripheral.connected = true;
-        peripherals.set(peripheral.id, peripheral);
-        setList(Array.from(peripherals.values()));
-      }
-    });
-  }
-
-  function handleDiscoverPeripheral(peripheral) {
-    console.log('Got ble peripheral', peripheral);
-    if (!peripheral.name) {
-      peripheral.name = 'Unknown';
-      // Do nothing else, for now, with Unknown devices
-    } else {
-      peripherals.set(peripheral.id, peripheral);
-      setList(Array.from(peripherals.values()));
-    }
-  }
-
-  function testPeripheral(peripheral) {
-    if (peripheral) {
-      if (peripheral.connected) {
-        BleManager.disconnect(peripheral.id);
-        setDeviceID(null);
-      } else {
-        BleManager.connect(peripheral.id)
-          .then(() => {
-            let p = peripherals.get(peripheral.id);
-            if (p) {
-              p.connected = true;
-              peripherals.set(peripheral.id, p);
-              setDeviceID(peripheral.id);
-              setList(Array.from(peripherals.values()));
-            }
-            console.log('Connected to ' + peripheral.id);
-            setDeviceID(peripheral.id);
-
-            setTimeout(() => {
-              // Test and read current RSSI Value
-              BleManager.retrieveServices(peripheral.id).then(data => {
-                console.log('Retrieved peripheral services', data);
-
-                BleManager.readRSSI(peripheral.id).then(rssi => {
-                  console.log('Retrieved RSSI value', rssi);
-                  let p = peripherals.get(peripheral.id);
-                  if (p) {
-                    p.rssi = rssi;
-                    peripherals.set(peripheral.id, p);
-                    setList(Array.from(peripherals.values()));
-                  }
-                });
-              });
-            }, 900);
-          })
-          .catch(err => {
-            console.error('Connection error', err);
-          });
-      }
-    }
-  }
-
   function appButtonPress(app) {
-    if (deviceID !== null) {
+    if (connectedDevice !== null) {
       console.log('Sending ' + app);
       writeData(app);
     }
@@ -247,7 +205,7 @@ function App() {
   function renderItem(item) {
     const color = item.connected ? '#3d3d00' : '#000028';
     return (
-      <TouchableOpacity onPress={() => testPeripheral(item)}>
+      <TouchableOpacity>
         <View
           style={[
             styles.peripheral,
@@ -273,6 +231,11 @@ function App() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.appButton}
+            onPress={() => appButtonPress('ticker')}>
+            <Text style={styles.appButtonText}>Ticker</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.appButton}
             onPress={() => appButtonPress('clear')}>
             <Text style={styles.appButtonText}>Clear</Text>
           </TouchableOpacity>
@@ -284,18 +247,25 @@ function App() {
   function SettingsScreen({navigation}) {
     return (
       <View style={[styles.screenView]}>
-        <View style={[styles.screenView, {marginTop: 30}]}>
-          <TouchableOpacity style={styles.appButton} onPress={startScan}>
-            <Text style={styles.appButtonText}>Start Scan</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.appButton}
-            onPress={retrieveConnected}>
-            <Text style={styles.appButtonText}>Get Connected Devices</Text>
-          </TouchableOpacity>
+        <View style={[styles.screenView, {marginTop: 10}]}>
+          <View style={{flexDirection: 'row', marginBottom: 5}}>
+            <Icon name="bluetooth" size={25} color="#ffff33" />
+            <Text style={styles.title}>Bluetooth</Text>
+          </View>
+          {connectedDevice === null ? (
+            <TouchableOpacity style={styles.appButton} onPress={findAndConnect}>
+              <Text style={styles.appButtonText}>Scan & Connect</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.appButton}
+              onPress={disconnectDevice}>
+              <Text style={styles.appButtonText}>Disconnect</Text>
+            </TouchableOpacity>
+          )}
           {isMonitoring ? (
             <Text style={{color: '#ffff33', fontSize: 20, fontWeight: 'bold'}}>
-              Message: {msg}
+              Notifications have started
             </Text>
           ) : null}
           <FlatList
@@ -331,7 +301,11 @@ function App() {
             ),
           })}
         />
-        <Stack.Screen name='Settings' component={SettingsScreen} options={{title: 'Settings'}} />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{title: 'Settings'}}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
