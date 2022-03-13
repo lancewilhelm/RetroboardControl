@@ -3,6 +3,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Button,
   TouchableOpacity,
   NativeModules,
   NativeEventEmitter,
@@ -13,7 +14,13 @@ import {
 
 import {NavigationContainer, useTheme} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
-import BleManager, {getConnectedPeripherals, start, stopScan} from 'react-native-ble-manager';
+import BleManager, {
+  getConnectedPeripherals,
+  start,
+  stopScan,
+} from 'react-native-ble-manager';
+import {stringToBytes} from 'convert-string';
+import Icon from 'react-native-vector-icons/Feather';
 
 const Stack = createNativeStackNavigator();
 const BleManagerModule = NativeModules.BleManager;
@@ -21,6 +28,9 @@ const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
 function App() {
   const [isScanning, setIsScanning] = useState(false);
+  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [deviceID, setDeviceID] = useState(null);
+  const [msg, setMsg] = useState();
   const peripherals = new Map();
   const [list, setList] = useState();
 
@@ -28,7 +38,7 @@ function App() {
     dark: true,
     colors: {
       primary: '#ffff33',
-      background: '#00003d',
+      background: '#000028',
       card: '#000028',
       text: '#fff',
       border: '#ffff33',
@@ -36,9 +46,13 @@ function App() {
     },
   };
 
+  const serviceID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const rxCharID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+  const txCharID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
   function startScan() {
     if (!isScanning) {
-      BleManager.scan([], 3, true)
+      BleManager.scan([serviceID], 3, true)
         .then(res => {
           console.log('Scanning...');
           setIsScanning(true);
@@ -59,7 +73,9 @@ function App() {
     if (peripheral) {
       peripheral.connected = false;
       peripherals.set(peripheral.id, peripheral);
+      setDeviceID(__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED);
       setList(Array.from(peripherals.values()));
+      setIsMonitoring(false);
     }
   }
 
@@ -71,11 +87,36 @@ function App() {
         data.characteristic,
       data.value,
     );
+    const val = String.fromCharCode.apply(null, data.value);
+    setMsg(val);
+  }
+
+  function getNotifications() {
+    console.log(deviceID);
+    BleManager.startNotification(deviceID, serviceID, txCharID)
+      .then(() => {
+        console.log('Notifications started...');
+        setIsMonitoring(true);
+      })
+      .catch(err => {
+        console.error(err);
+      });
+  }
+
+  function writeData(data) {
+    console.log(data);
+    BleManager.write(deviceID, serviceID, rxCharID, stringToBytes(data))
+      .then(() => {
+        console.log('Write: ' + data);
+      })
+      .catch(err => {
+        console.log(err);
+      });
   }
 
   function retrieveConnected() {
     BleManager.getConnectedPeripherals([]).then(res => {
-      if (res.length == 0) {
+      if (res.length === 0) {
         console.log('No connected peripherals');
       }
       console.log(res);
@@ -103,6 +144,7 @@ function App() {
     if (peripheral) {
       if (peripheral.connected) {
         BleManager.disconnect(peripheral.id);
+        setDeviceID(null);
       } else {
         BleManager.connect(peripheral.id)
           .then(() => {
@@ -110,9 +152,11 @@ function App() {
             if (p) {
               p.connected = true;
               peripherals.set(peripheral.id, p);
+              setDeviceID(peripheral.id);
               setList(Array.from(peripherals.values()));
             }
             console.log('Connected to ' + peripheral.id);
+            setDeviceID(peripheral.id);
 
             setTimeout(() => {
               // Test and read current RSSI Value
@@ -135,6 +179,13 @@ function App() {
             console.error('Connection error', err);
           });
       }
+    }
+  }
+
+  function appButtonPress(app) {
+    if (deviceID !== null) {
+      console.log('Sending ' + app);
+      writeData(app);
     }
   }
 
@@ -164,8 +215,8 @@ function App() {
         } else {
           PermissionsAndroid.request(
             PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          ).then(result => {
-            if (result) {
+          ).then(res => {
+            if (res) {
               console.log('User accept');
             } else {
               console.log('User refuse');
@@ -194,15 +245,66 @@ function App() {
   }, []);
 
   function renderItem(item) {
-    const color = item.connected ? '#3d3d00' : '#00003d';
+    const color = item.connected ? '#3d3d00' : '#000028';
     return (
       <TouchableOpacity onPress={() => testPeripheral(item)}>
-        <View style={[styles.peripheral, {backgroundColor: color, borderColor: '#ffff33'}]}>
+        <View
+          style={[
+            styles.peripheral,
+            {backgroundColor: color, borderColor: '#ffff33'},
+          ]}>
           <Text style={{color: '#ffff33'}}>{item.name}</Text>
           <Text style={{color: '#ffff33'}}>{item.rssi}</Text>
           <Text style={{color: '#ffff33'}}>{item.id}</Text>
         </View>
       </TouchableOpacity>
+    );
+  }
+
+  function HomeScreen({navigation}) {
+    return (
+      <View style={[styles.screenView]}>
+        <Text style={[styles.title]}>Retroboard Control</Text>
+        <View style={styles.appButtonsView}>
+          <TouchableOpacity
+            style={styles.appButton}
+            onPress={() => appButtonPress('clock')}>
+            <Text style={styles.appButtonText}>Clock</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.appButton}
+            onPress={() => appButtonPress('clear')}>
+            <Text style={styles.appButtonText}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  function SettingsScreen({navigation}) {
+    return (
+      <View style={[styles.screenView]}>
+        <View style={[styles.screenView, {marginTop: 30}]}>
+          <TouchableOpacity style={styles.appButton} onPress={startScan}>
+            <Text style={styles.appButtonText}>Start Scan</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.appButton}
+            onPress={retrieveConnected}>
+            <Text style={styles.appButtonText}>Get Connected Devices</Text>
+          </TouchableOpacity>
+          {isMonitoring ? (
+            <Text style={{color: '#ffff33', fontSize: 20, fontWeight: 'bold'}}>
+              Message: {msg}
+            </Text>
+          ) : null}
+          <FlatList
+            data={list}
+            renderItem={({item}) => renderItem(item)}
+            keyExtractor={item => item.id}
+          />
+        </View>
+      </View>
     );
   }
 
@@ -217,48 +319,21 @@ function App() {
         <Stack.Screen
           name="Home"
           component={HomeScreen}
-          options={{title: ''}}
+          options={({navigation, route}) => ({
+            headerTitle: '',
+            headerRight: () => (
+              <Icon
+                name="settings"
+                size={25}
+                color="#ffff33"
+                onPress={() => navigation.navigate('Settings')}
+              />
+            ),
+          })}
         />
+        <Stack.Screen name='Settings' component={SettingsScreen} options={{title: 'Settings'}} />
       </Stack.Navigator>
-      <View style={[styles.screenView, {flex: 2}]}>
-        <TouchableOpacity style={styles.appButton} onPress={startScan}>
-          <Text style={styles.appButtonText}>Start Scan</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.appButton} onPress={stopScan}>
-          <Text style={styles.appButtonText}>Stop Scan</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.appButton} onPress={retrieveConnected}>
-          <Text style={styles.appButtonText}>Get Connected Devices</Text>
-        </TouchableOpacity>
-        <FlatList
-          data={list}
-          renderItem={({item}) => renderItem(item)}
-          keyExtractor={item => item.id}
-        />
-      </View>
     </NavigationContainer>
-  );
-}
-
-function HomeScreen({navigation}) {
-  const {colors} = useTheme();
-
-  return (
-    <View style={[styles.screenView]}>
-      <Text style={[styles.title]}>Retroboard Control</Text>
-      <View style={styles.appButtonsView}>
-        <TouchableOpacity
-          style={styles.appButton}
-          onPress={() => console.log('Clock pressed')}>
-          <Text style={styles.appButtonText}>Clock</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.appButton}
-          onPress={() => console.log('Clear pressed')}>
-          <Text style={styles.appButtonText}>Clear</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
   );
 }
 
@@ -267,7 +342,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00003d',
+    backgroundColor: '#000028',
   },
   appButtonsView: {
     marginTop: 5,
@@ -293,7 +368,7 @@ const styles = StyleSheet.create({
     borderColor: '#ffff33',
     borderRadius: 5,
     borderWidth: 1,
-  }
+  },
 });
 
 export default App;
